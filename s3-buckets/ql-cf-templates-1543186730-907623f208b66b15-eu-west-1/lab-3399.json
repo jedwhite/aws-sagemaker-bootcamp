@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: '2010-09-09' Description: Practical Data Science with SageMaker Bootcamp v1.0 Parameters:
+  NotebookInstanceType:
+    Description: Instance type for Notebook instance.
+    Type: String
+    Default: ml.m4.xlarge
+  S3PathPrefix:
+    Type: String
+    Description: "The path prefix where lab resources are stored"
+    Default: "courses/ILT-DD-300-MLPDSS/v1.0.0/lab"
+    #Default: "courses/ILT-DD-300-MLPDSS/v1.0.0/lab"
+  ModelPrefix:
+    Description: Prefix to prepend to resources created for the model.
+    Type: String
+    Default: PracticalDataScience-Bootcamp Resources:
+  CFNNotebookInstanceLifeCycleConfig:
+    Type: "AWS::SageMaker::NotebookInstanceLifecycleConfig"
+    Properties:
+      NotebookInstanceLifecycleConfigName: !Join ["-", ["upload-notebook", !Ref "AWS::StackName"]]
+      OnStart:
+        - Content:
+            Fn::Base64:
+              !Sub |
+              #!/bin/bash
+      OnCreate:
+        - Content:
+            Fn::Base64:
+              !Sub |
+              #!/bin/bash
+              cd SageMaker
+              curl -O 
+https://${AWS::Region}-tcprod.s3.amazonaws.com/${S3PathPrefix}/scripts/xgboost_customer_churn_bootcamp_student.ipynb
+              curl -O https://${AWS::Region}-tcprod.s3.amazonaws.com/${S3PathPrefix}/scripts/churn.txt
+              mkdir dashboard
+              cd dashboard
+              curl -O 
+https://${AWS::Region}-tcprod.s3.amazonaws.com/${S3PathPrefix}/scripts/template-cloudwatch.yaml
+              cd ..
+  CFNNotebookInstance:
+    Type: "AWS::SageMaker::NotebookInstance"
+    DependsOn:
+      - CFNNotebookInstanceLifeCycleConfig
+      - SageMakerExecutionRole
+    Properties:
+      NotebookInstanceName: !Join ["-", ["datasciencebootcamp", !Ref "AWS::StackName"]]
+      LifecycleConfigName: !GetAtt CFNNotebookInstanceLifeCycleConfig.NotebookInstanceLifecycleConfigName
+      InstanceType: !Ref NotebookInstanceType
+      RoleArn: !GetAtt SageMakerExecutionRole.Arn
+  SageMakerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "sagemaker.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess Outputs:
+  NotebookInstance:
+    Description: Details about the SageMaker NotebookInstance
+    Value: !Join ["",
+      ["https://",
+        !GetAtt CFNNotebookInstance.NotebookInstanceName,
+        ".notebook.",
+        !Ref "AWS::Region",
+        ".sagemaker.aws"]]
